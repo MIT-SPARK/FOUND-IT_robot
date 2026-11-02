@@ -1,0 +1,4 @@
+std_msgs/Header header
+geometry_msgs/Pose pose_goal
+geometry_msgs/Twist v_goal
+builtin_interfaces/Duration move_time

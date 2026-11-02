@@ -1,0 +1,55 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nero_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Launch files that compose the NERO manipulation stack, plus the offline-dev
+    session recorder.
+
+    This is the only package that knows about all the others, and the only place
+    the choice of controller is made: pick_place.launch.py runs move_group with
+    nero_joint_control, while pick_place_impedance.launch.py runs it with
+    impedance_control instead. Those two are mutually exclusive -- each
+    controller owns the arm's command path and the puppet/joint_states feedback
+    topic -- so encoding the choice as two launch files rather than a runtime
+    flag is deliberate.
+  </description>
+  <maintainer email="aryannav@mit.edu">Aryan Naveen</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>nero_moveit_config</exec_depend>
+  <exec_depend>nero_description</exec_depend>
+  <exec_depend>nero_motion_planning</exec_depend>
+  <exec_depend>nero_joint_control</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <!-- scripts/execute_on_enter.py: the operator-side half of
+       execution.require_confirmation. Calls pose_commander's execute_grasp
+       service on Enter. -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <!-- scripts/record_session.sh shells out to ros2 bag record. -->
+  <exec_depend>ros2bag</exec_depend>
+  <!-- scripts/session_publisher.py reads a recorded session and republishes it
+       as a frozen scene; scripts/prune_session.py rewrites one. -->
+  <exec_depend>rosbag2_py</exec_depend>
+  <exec_depend>rosidl_runtime_py</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <!-- offline_viz.launch.py draws the candidate grippers the same way
+       analytic_grasp_ros/launch/view.launch.py does on the real robot. -->
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>analytic_grasp_ros</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

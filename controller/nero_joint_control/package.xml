@@ -1,0 +1,34 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>nero_joint_control</name>
+  <version>0.1.0</version>
+  <description>
+    Joint-space execution for the NERO arm: a validated FollowJointTrajectory
+    action server that streams MoveIt trajectories to agx_arm_ctrl's
+    control/joint_states topic.
+
+    This package and impedance_control are mutually exclusive peers -- both are
+    owners of the arm's command path and of the puppet/joint_states feedback
+    topic, so exactly one of them runs at a time. nero_bringup picks; see
+    pick_place.launch.py vs pick_place_impedance.launch.py.
+  </description>
+  <maintainer email="aryannav@mit.edu">Aryan Naveen</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>control_msgs</exec_depend>
+  <exec_depend>trajectory_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

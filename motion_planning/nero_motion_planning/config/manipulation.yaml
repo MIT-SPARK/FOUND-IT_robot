@@ -1,0 +1,195 @@
+# Task and backend configuration for nero_motion_planning's pose_commander.
+#
+# Loaded wholesale with yaml.safe_load from the node's `config_file` parameter
+# rather than declared as ROS parameters: nested lists-of-floats under nested
+# keys are painful to express that way, and keeping the whole task description
+# in one readable file is worth more than per-key ros2 param introspection.
+
+backend: moveit                # moveit | impedance
+
+execution:
+  # true  -- plan and preview only; wait for the execute_grasp service before
+  #          moving (scripts/execute_on_enter.py, press Enter).
+  # false -- execute as soon as a sequence plans successfully. The arm then
+  #          moves on a perception event with no human in the loop. This is a
+  #          real safety gate, outside and above nero_joint_control's own
+  #          dry_run and require_armed. Leave true for a new scene or object;
+  #          the combination that is safe to iterate on is
+  #          require_confirmation: false together with dry_run:=true.
+  require_confirmation: true
+  # Only consulted when require_confirmation is false: refuse to auto-execute
+  # for a target that has moved less than this since the last one, so a
+  # jittering perception estimate cannot retrigger the same grasp repeatedly.
+  auto_execute_min_target_delta_m: 0.01
+
+frames:
+  planning: world              # MoveIt's planning frame (the URDF root; see nero.srdf)
+  end_effector: gripper_flange
+
+joints: [joint1, joint2, joint3, joint4, joint5, joint6, joint7]
+
+# Predefined waypoints with known-good joint solutions -- the poses the arm must
+# always be able to reach, so no IK is gambled on them.
+#
+# `joints` is authoritative. `pose` is its forward kinematics for
+# frames.end_effector, needed only by a backend with no joint-space interface
+# (impedance). Where `pose` is given, the node cross-checks it against
+# compute_fk(joints) at startup and refuses to start if they disagree -- which
+# also catches a pose that was captured for gripper_palm rather than
+# gripper_flange, a 0.0455 m difference that would otherwise quietly shorten
+# every grasp.
+named_configurations:
+  staging:
+    joints: [-0.0022165681500328, -0.4210606820436320,  0.0092502450355699,
+              1.9703894590389983,  0.0155159770502296, -0.1588598685165239,
+              0.0224449341806471]
+    # FK of the joints above for gripper_flange, read back from move_group.
+    # The originally recorded values were link7's pose, which differs by the
+    # fixed link7->gripper_flange joint: xyz "0.032 0 -0.0235" (0.0397 m) and
+    # rpy "-1.5708 0 -1.5708" (120 deg).
+    pose:
+      position: [-0.174800, -0.007252, 0.426734]
+      rpy: [-1.4980423404763814, -1.5625841918705596, 1.6634232482053812]
+  home:
+    joints: [ 0.0227765467385260, -1.5693651568082614,  0.0345051593119279,
+              2.0945071882875900,  0.0443488162931759, -0.0198269403026556,
+              1.0678447962476907]
+    # pose deliberately omitted: pose_commander derives it by FK at startup and
+    # hands it to the generator, which is what lets a backend with no
+    # joint-space interface (impedance) home the arm. Record one here only to
+    # pin it, in which case it is cross-checked against FK rather than replaced.
+    #
+    # Note nero.srdf also defines a <group_state name="home">, all zeros, which
+    # is NOT this pose. This file is the source of truth for the arm's home.
+
+tasks:
+  pick:
+    staging: staging
+    # Nonzero so the pregrasp waypoint is a standoff rather than the grasp pose
+    # itself: CHOMP free-plans to the standoff and only the last leg is a
+    # straight-line Cartesian segment, which is markedly easier to plan than
+    # free-planning straight onto the grasp. At 0.0 the pregrasp and retreat
+    # waypoints coincide with the target and both LINEAR legs are zero-length.
+    #
+    # Per-task, not shared: place needs a shorter one. Its top-down envelope at
+    # the measured drop point runs out near flange z = 0.26, and a 0.1 m
+    # pregrasp put that waypoint at 0.34 -- unreachable at every yaw, which is
+    # exactly how the first place attempt failed.
+    approach_distance_m: 0.1
+    retreat_distance_m: 0.1
+    # approach -- back out along the gripper's own axis, the way it came in.
+    retreat_axis: approach
+    grip_at_staging: open
+    grip_at_target: close
+  place:
+    staging: staging
+    approach_distance_m: 0.01
+    retreat_distance_m: 0.01
+    retreat_axis: approach
+    # Closed on the way to staging: the gripper is still holding the object.
+    grip_at_staging: close
+    grip_at_target: open
+
+# Turning a perception point into gripper_flange release poses. tasks.place
+# above describes the shape of the path; this describes the target it aims at.
+place_target:
+  # Global rather than namespace-relative: perception publishes this outside the
+  # arm's namespace. A PoseStamped on the namespaced `place_target` topic still
+  # works and is used verbatim, for a caller that already knows the orientation.
+  topic: /place_obj_location
+  # Height of gripper_flange above the published point. 0.0 puts the flange on
+  # the point itself, which for the measured scene is about 0.02 m above where
+  # the *pick* flange sat for the same object -- vggt_slam's point and the grasp
+  # pipeline's flange pose do not share a convention, so this is calibration,
+  # not geometry.
+  #
+  # It is also the tightest knob here. Swept against the joint limits at the
+  # measured drop point (-0.37, -0.25, 0.24), the top-down envelope runs out
+  # near flange z = 0.26: at z = 0.242 the best yaw has 0.096 rad of margin, at
+  # 0.262 it has 0.010, and by 0.302 nothing is reachable at any yaw. Raise this
+  # and places start failing at 'pregrasp'; go negative to buy margin back.
+  release_standoff_m: 0.0
+  # Yaws about world Z for the straight-down release pose, walked best-first --
+  # the same walk plan_task does over ranked grasp candidates.
+  #
+  # A top-down pose cannot simply roll to suit the arm: joint7's axis is flange
+  # -Y (the closing axis, not the approach axis) and joint6 spans only
+  # [-0.73, 0.95] rad, so yaw is paid for with the whole wrist. What the arm
+  # wants is flange +X pointing radially *outward* from the base, away from
+  # itself, and the reachable band is roughly +/-60 degrees either side of that.
+  #
+  # 180 leads because this arm works behind its own base -- staging and home
+  # both hold the approach axis along world -X, and the scene sits near
+  # (-0.37, -0.25), whose outward direction is about -146 degrees. Measured
+  # there, yaw 180 has four times the margin of yaw 0 (0.096 vs 0.024 rad at
+  # flange z = 0.242), and 0 is visibly the awkward branch. Keep in mind this
+  # ordering is workspace-dependent rather than absolute: for a target in front
+  # of the base the outward direction is yaw 0 and the order inverts, so
+  # re-measure rather than assuming if the scene moves to +X.
+  yaws_deg: [180.0, -150.0, -120.0, 150.0, 0.0]
+
+gripper:
+  # agx_arm_ctrl reads these off the "gripper" joint of a JointState on
+  # control/joint_states: position is jaw width in metres, effort is force in N.
+  open_width_m: 0.1
+  close_width_m: 0.02
+  open_force_n: 1.0
+  close_force_n: 2.0
+  # Fire-and-forget topic command with no completion feedback, so this is how
+  # long the physical gripper gets to finish closing before the arm retreats
+  # out from between its fingers.
+  settle_sec: 1.5
+
+moveit:
+  free_pipeline: chomp         # the only pipeline registered; see nero_moveit_config
+  linear:
+    # Cartesian interpolation resolution. This is also the IK call count for a
+    # linear segment -- move_group runs setFromIK once per step -- and under
+    # kinematics.yaml's solve_type: Distance every one of those costs the full
+    # kinematics_solver_timeout. At 0.005 m a 0.2 m approach was 40 IK calls,
+    # and pose_commander pays that twice per grasp for every candidate it walks.
+    # 0.01 m halves it and is still far finer than the arm's tracking accuracy.
+    max_step_m: 0.01
+    fraction_threshold: 0.99
+    avoid_collisions: true
+  # On Humble, GetCartesianPath has no velocity/acceleration scaling fields, so
+  # linear segments come back timed at full speed and nero_joint_control's
+  # trajectory_bridge rejects them against joint_limits.yaml. This uniformly
+  # stretches time_from_start until every point is inside the limits.
+  #
+  # Applied to every segment, not only the linear ones. velocity_scaling below
+  # asks MoveIt for headroom on the legs it times itself, but that is a request,
+  # not a guarantee, and the bridge rejects the entire goal over a 0.4%
+  # overshoot. Stretching is a no-op once a trajectory already fits, so covering
+  # the free legs too costs nothing and removes a whole class of aborts.
+  enforce_joint_limits: true
+  # Fraction of joint_limits.yaml each plan is timed to. Not 1.0: MoveIt's TOTG
+  # adapter parameterizes right up to the limit and its resampling then reports
+  # accelerations a hair past it, which trajectory_bridge rejects outright.
+  velocity_scaling: 0.95
+  acceleration_scaling: 0.95
+  joint_limits_yaml: ''        # filled in by the launch file
+
+impedance:
+  goal_topic: /goal_pose
+  position_tolerance_m: 0.01
+  orientation_tolerance_rad: 0.05
+  convergence_timeout_sec: 10.0
+
+candidates:
+  # analytic_grasp_ros ranks its candidates best-first as no0, no1, ...; when
+  # planning fails on one, walk down the ranking rather than giving up.
+  frame_template: 'no{i}/gripper_flange'
+  count: 1                    # analytic.launch.py sets top_k: 20; offline dev leaves the default 5
+  # Off: this doubles planning time for a pose the grasp side already ruled out.
+  # flip_180_about_approach_axis rotates 180 degrees about gripper_flange's local
+  # +Z, which is the same physical operation analytic_grasp_ros's
+  # canonicalize_twin(twin_up=True) already applied when it chose the twin whose
+  # flange +X points up -- the branch joint7's +/-1.5708 limit generically makes
+  # reachable. So the retry re-tries exactly the twin that was rejected on
+  # purpose. That choice is a heuristic rather than a proof, so turn this back on
+  # if candidates start failing at 'pregrasp' for want of the other branch.
+  retry_180_flip: true
+  position_tolerance_m: 0.002
+  orientation_tolerance_rad: 0.01
+  poll_rate_hz: 5.0
