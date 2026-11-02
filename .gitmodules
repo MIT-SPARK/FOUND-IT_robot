@@ -1,0 +1,9 @@
+[submodule "third_party/pymoveit2"]
+	path = third_party/pymoveit2
+	url = https://github.com/AndrejOrsula/pymoveit2.git
+[submodule "third_party/trac_ik"]
+	path = third_party/trac_ik
+	url = https://github.com/traclabs/trac_ik.git
+[submodule "third_party/agx_arm_ros"]
+	path = third_party/agx_arm_ros
+	url = https://github.com/agilexrobotics/agx_arm_ros.git
