@@ -1,6 +1,6 @@
-# Found-IT++ Supplemental Robot Code
+# FOUND-IT++ Supplemental Robot Code
 
-This is the release of supporting code to run [Found-IT](https://arxiv.org/abs/2610.23622) on a robot. It is designed for the [AgileX Cobot Magic](https://global.agilex.ai/products/cobot-magic-bimanual-teleoperation-platform-mobile-aloha) with one [Nero](https://global.agilex.ai/products/nero) arm, but can be adapted to any robot platform.
+This is the release of supporting code to run [FOUND-IT++](https://arxiv.org/abs/2610.23622) on a robot. It is designed for the [AgileX Cobot Magic](https://global.agilex.ai/products/cobot-magic-bimanual-teleoperation-platform-mobile-aloha) with one [Nero](https://global.agilex.ai/products/nero) arm, but can be adapted to any robot platform.
 
 This release includes:
 - Two arm controllers (impedance control and joint control). Impedance control is used in the paper.
