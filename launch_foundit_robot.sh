@@ -40,7 +40,7 @@ windows:
       - shell_command:
         - ros2 launch analytic_grasp_ros sensors.launch.py
       - shell_command:
-        - echo "launch FOUND-IT here"
+        - echo "use `bash FOUND_IT_DIRECTORY/run_ros2.sh` to launch FOUND-IT"
       - shell_command:
         - ros2 launch analytic_grasp_ros analytic.launch.py
       - shell_command:
